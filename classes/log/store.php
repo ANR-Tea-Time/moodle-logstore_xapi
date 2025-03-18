@@ -15,6 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace logstore_xapi\log;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../../src/autoload.php');
@@ -28,6 +29,7 @@ use \tool_log\helper\reader as helper_reader;
 use \tool_log\helper\buffered_writer as helper_writer;
 use \core\event\base as event_base;
 use \stdClass as php_obj;
+
 /**
  * Processes events and enables them to be sent to a logstore.
  *
@@ -68,8 +70,9 @@ class store extends php_obj implements log_writer {
         $logstudentsonly = $this->get_config('logstudentsonly', 1);
         if ($logstudentsonly) {
             $context = \context_course::instance($COURSE->id);
+            $studentroleid = $DB->get_field('role', 'id', ['shortname' => 'student']);
             $isstudent = $DB->record_exists('role_assignments', [
-                'roleid' => 5,
+                'roleid' => $studentroleid,
                 'userid' => $USER->id,
                 'contextid' => $context->id
             ]);
@@ -88,8 +91,18 @@ class store extends php_obj implements log_writer {
         }
 
         // Check if the xAPI logging is disabled for a course.
-        $customfield = $DB->get_record('customfield_data', ['instanceid' => $COURSE->id]);
-        if (!empty($customfield) && $customfield->value === '0') {
+        $customfield_shortname = $this->get_config('customfield_shortname', '1');
+        $customfield_field = $DB->get_record('customfield_field', ['shortname' => $customfield_shortname]);
+        $customfield_context = $DB->get_record('customfield_data', ['instanceid' => $COURSE->id, 'fieldid' => $customfield_field->id]);
+        if (!empty($customfield_context) && $customfield_context->value === '0') {
+            return true;
+        }
+
+        // Check if user gave consent to log their data through the data collection policy.
+        $policyname = $this->get_config('policyname', 1);
+        $policyversion = $DB->get_record_sql('SELECT MAX(id) as id FROM {tool_policy_versions} WHERE name = ?', [$policyname]);
+        $consent = $DB->get_record('tool_policy_acceptances', ['userid' => $event->userid, 'policyversionid' => $policyversion->id]);
+        if (empty($consent) || $consent->status === '0') {
             return true;
         }
 
