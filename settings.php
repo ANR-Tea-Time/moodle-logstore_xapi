@@ -248,6 +248,13 @@ if ($hassiteconfig) {
         '0'
     ));
 
+    $settings->add(new admin_setting_configcheckbox(
+        'logstore_xapi/activateusernamehashing',
+        get_string('activateusernamehashing', 'logstore_xapi'),
+        get_string('activateusernamehashing_desc', 'logstore_xapi'),
+        '0'
+    ));
+
     $settings->add(new admin_setting_configtext(
         'logstore_xapi/customfield_shortname',
         get_string('customfield_shortname', 'logstore_xapi'),

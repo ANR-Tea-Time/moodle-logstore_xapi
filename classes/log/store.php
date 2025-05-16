@@ -320,6 +320,7 @@ class store extends php_obj implements log_writer {
                 'plugin_version' => $plugin->release,
                 'repo' => new \src\transformer\repos\MoodleRepository($DB),
                 'app_url' => $CFG->wwwroot,
+                'activateusernamehashing' => $this->get_config('activateusernamehashing', false),
             ],
             'loader' => [
                 'loader' => 'moodle_curl_lrs',

@@ -39,7 +39,11 @@ function get_user(array $config, \stdClass $user) {
 
     // Name
     if (array_key_exists('send_name', $config) && $config['send_name'] == true) {
-        $actor['name'] = get_full_name($user);
+        if (array_key_exists('activateusernamehashing', $config) && $config['activateusernamehashing'] == true) {
+            $actor['name'] = hash('sha256', get_full_name($user));
+        } else {
+            $actor['name'] = get_full_name($user);
+        }
     }
 
     // mbox
@@ -59,17 +63,31 @@ function get_user(array $config, \stdClass $user) {
     }
 
     if (array_key_exists('send_username', $config) && $config['send_username'] == true) {
-        $actor['account'] = [
-            'homePage' => $homePage,
-            'name' => $user->username,
-        ];
+        if (array_key_exists('activateusernamehashing', $config) && $config['activateusernamehashing'] == true) {
+            $actor['account'] = [
+                'homePage' => $homePage,
+                'name' => hash('sha256', $user->username),
+            ];
+        } else {
+            $actor['account'] = [
+                'homePage' => $homePage,
+                'name' => $user->username,
+            ];
+        }
         return $actor;
     }
 
     // default
-    $actor['account'] = [
-        'homePage' => $config['app_url'],
-        'name' => strval($user->id),
-    ];
+    if (array_key_exists('activateusernamehashing', $config) && $config['activateusernamehashing'] == true) {
+        $actor['account'] = [
+            'homePage' => $config['app_url'],
+            'name' => hash('sha256', strval($user->id)),
+        ];
+    } else {
+        $actor['account'] = [
+            'homePage' => $config['app_url'],
+            'name' => strval($user->id),
+        ];
+    }
     return $actor;
 }
