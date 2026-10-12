@@ -27,6 +27,7 @@
 namespace src\transformer\events\mod_quiz\question_answered;
 
 use src\transformer\utils as utils;
+use src\transformer\events\mod_quiz\attempt_submitted as attempt_submitted;
 
 /**
  * Generic handler for quiz question answered event.
@@ -42,23 +43,53 @@ function handler(array $config, \stdClass $event, \stdClass $questionattempt) {
 
     switch ($question->qtype) {
         case 'essay':
-            return essay($config, $event, $questionattempt, $question);
+            $statements = essay($config, $event, $questionattempt, $question);
+            break;
         case 'gapselect':
-            return gapselect($config, $event, $questionattempt, $question);
+            $statements = gapselect($config, $event, $questionattempt, $question);
+            break;
         case 'truefalse':
-            return truefalse($config, $event, $questionattempt, $question);
+            $statements = truefalse($config, $event, $questionattempt, $question);
+            break;
         case 'randomsamatch':
-            return randomsamatch($config, $event, $questionattempt, $question);
+            $statements = randomsamatch($config, $event, $questionattempt, $question);
+            break;
         case 'shortanswer':
-            return shortanswer($config, $event, $questionattempt, $question);
+            $statements = shortanswer($config, $event, $questionattempt, $question);
+            break;
         case 'match':
-            return matching($config, $event, $questionattempt, $question);
+            $statements = matching($config, $event, $questionattempt, $question);
+            break;
         case 'multichoice':
         case 'multichoiceset':
-            return multichoice($config, $event, $questionattempt, $question);
+            $statements = multichoice($config, $event, $questionattempt, $question);
+            break;
         case 'numerical':
-            return numerical($config, $event, $questionattempt, $question);
+            $statements = numerical($config, $event, $questionattempt, $question);
+            break;
         default:
             return [];
     }
+
+    $slot = isset($questionattempt->slot) ? (int) $questionattempt->slot : null;
+    if ($slot === null) {
+        return $statements;
+    }
+    $interactions = attempt_submitted\get_quiz_interactions_extension(
+        $config,
+        $event,
+        (int) $questionattempt->questionid,
+        $slot
+    );
+    if ($interactions !== null) {
+        foreach ($statements as &$statement) {
+            $statement['result']['extensions'] = array_merge(
+                $statement['result']['extensions'] ?? [],
+                [attempt_submitted\QUIZ_INTERACTIONS_EXTENSION => $interactions]
+            );
+        }
+        unset($statement);
+    }
+
+    return $statements;
 }

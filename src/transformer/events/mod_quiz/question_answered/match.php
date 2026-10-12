@@ -46,17 +46,7 @@ function matching(array $config, \stdClass $event, \stdClass $questionattempt, \
     $quiz = $repo->read_record_by_id('quiz', $attempt->quiz);
     $coursemodule = $repo->read_record_by_id('course_modules', $event->contextinstanceid);
     $lang = utils\get_course_lang($course);
-    $selections = array_reduce(
-        explode('; ', $questionattempt->responsesummary),
-        function ($reduction, $selection) {
-            $split = explode("\n -> ", $selection);
-            $selectionkey = $split[0];
-            $selectionvalue = $split[1];
-            $reduction[$selectionkey] = $selectionvalue;
-            return $reduction;
-        },
-        []
-    );
+    $selections = utils\result\get_matching_selections($questionattempt->responsesummary);
 
     return [[
         'actor' => utils\get_user($config, $user),

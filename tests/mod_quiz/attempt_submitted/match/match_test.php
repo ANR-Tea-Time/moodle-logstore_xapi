@@ -67,6 +67,80 @@ class match_test extends \logstore_xapi\xapi_test_case {
      * @return void
      */
     public function test_init() {
+    }
 
+    /**
+     * Ensure matching interactions use the question's real targets.
+     *
+     * @return void
+     */
+    public function test_attempt_submitted_enriches_matching_interactions() {
+        $event = $this->get_event();
+        $testdata = $this->get_test_data();
+        $testdata->qtype_match_subquestions[] = (object) [
+            'id' => 4,
+            'questionid' => 1,
+            'answertext' => 'Purple',
+            'questiontext' => '<p>Yellow</p>',
+        ];
+        $testdata->local_quizinteractions_log = [[
+            'id' => 1,
+            'attemptid' => 1,
+            'interactions' => json_encode([
+                [
+                    'slot' => 1,
+                    'questionid' => 1,
+                    'answerid' => 3,
+                    'elementname' => 'sub3',
+                    'position' => 2,
+                    'action' => 'selected',
+                    'timestamp' => 5000,
+                    'datetime' => '2026-09-07T10:00:00Z',
+                ],
+                [
+                    'slot' => 1,
+                    'questionid' => 1,
+                    'answerid' => 1,
+                    'elementname' => 'sub1',
+                    'position' => 0,
+                    'action' => 'selected',
+                    'timestamp' => 5001,
+                    'datetime' => '2026-09-07T10:00:01Z',
+                ],
+                [
+                    'slot' => 1,
+                    'questionid' => 1,
+                    'answerid' => 4,
+                    'elementname' => 'sub4',
+                    'position' => 3,
+                    'action' => 'selected',
+                    'timestamp' => 5002,
+                    'datetime' => '2026-09-07T10:00:02Z',
+                ],
+                [
+                    'slot' => 1,
+                    'questionid' => 1,
+                    'answerid' => 2,
+                    'elementname' => 'sub2',
+                    'position' => 1,
+                    'action' => 'selected',
+                    'timestamp' => 5003,
+                    'datetime' => '2026-09-07T10:00:03Z',
+                ],
+            ]),
+        ]];
+        $config = $this->get_transformer_config();
+        $config['repo'] = new \src\transformer\repos\TestRepository($testdata);
+
+        $statements = \src\transformer\events\mod_quiz\attempt_submitted\handler($config, $event);
+        $interaction = $statements[0]['result']['extensions']['https://example.com/xapi/extensions/quiz-interactions'][0];
+
+        $interactions = $statements[0]['result']['extensions']['https://example.com/xapi/extensions/quiz-interactions'];
+        $this->assertCount(4, $interactions);
+        $this->assertSame([null, null, null, null], array_column($interactions, 'answertext'));
+        $this->assertSame([null, null, null, null], array_column($interactions, 'correct'));
+        $this->assertSame(['fallback', 'fallback', 'fallback', 'fallback'], array_column($interactions, 'resolution'));
+        $this->assertSame([null, null, null, null], array_column($interactions, 'subquestiontext'));
+        $this->assertSame('test_question', $interactions[0]['questiontext']);
     }
 }

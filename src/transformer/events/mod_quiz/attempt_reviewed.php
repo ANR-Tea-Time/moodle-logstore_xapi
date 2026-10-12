@@ -27,6 +27,7 @@
 namespace src\transformer\events\mod_quiz;
 
 use src\transformer\utils as utils;
+use src\transformer\events\mod_quiz\attempt_submitted as attempt_submitted;
 
 /**
  * Transformer for quiz attempt reviewed event.
@@ -42,7 +43,7 @@ function attempt_reviewed(array $config, \stdClass $event) {
     $course = $repo->read_record_by_id('course', $event->courseid);
     $lang = utils\get_course_lang($course);
 
-    return [[
+    $statement = [[
         'actor' => utils\get_user($config, $learner),
         'verb' => utils\get_verb('received', $config, $lang),
         'object' => utils\get_activity\quiz_review($config, $event->objectid),
@@ -52,7 +53,9 @@ function attempt_reviewed(array $config, \stdClass $event) {
             'contextActivities' => [
                 'parent' => [
                     utils\get_activity\quiz_attempt(
-                        $config, $event->objectid, $event->contextinstanceid
+                        $config,
+                        $event->objectid,
+                        $event->contextinstanceid
                     ),
                     ...utils\context_activities\get_parent(
                         $config,
@@ -66,4 +69,13 @@ function attempt_reviewed(array $config, \stdClass $event) {
             ],
         ]
     ]];
+
+    $interactions = attempt_submitted\get_quiz_interactions_extension($config, $event);
+    if ($interactions !== null) {
+        $statement[0]['result']['extensions'] = [
+            attempt_submitted\QUIZ_INTERACTIONS_EXTENSION => $interactions,
+        ];
+    }
+
+    return $statement;
 }

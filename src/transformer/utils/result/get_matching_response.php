@@ -38,29 +38,17 @@ function get_matching_response(
     \stdClass $questionattempt,
     string $lang
 ) {
-    $selmap = array_reduce(
-        explode('; ', $questionattempt->responsesummary),
-        function ($reduction, $selection) {
-            $split = explode("\n -> ", $selection);
-            $selectionkey = $split[0];
-            $selectionvalue = $split[1];
-            $reduction[$selectionkey] = $selectionvalue;
-            return $reduction;
-        },
-        []
-    );
+    $selections = get_matching_selections($questionattempt->responsesummary);
     return implode(
         '[,]',
         array_map(
-            function ($selection) {
-                $split = explode("\n -> ", $selection);
-                $selectionkey = $split[0];
-                $selectionvalue = $split[1];
+            function ($selectionkey, $selectionvalue) {
                 return utils\slugify($selectionkey)
                     . '[.]'
                     . utils\slugify($selectionvalue);
             },
-            explode('; ', $questionattempt->responsesummary)
+            array_keys($selections),
+            array_values($selections)
         )
     );
 }
