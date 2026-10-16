@@ -89,6 +89,7 @@ class multichoice_test extends \logstore_xapi\xapi_test_case {
                         'slot' => 1,
                         'questionid' => 1,
                         'answerid' => 0,
+                        'elementname' => 'q44:2_sub3',
                         'attemptid' => 1,
                         'position' => 0,
                         'action' => 'selected',
@@ -126,6 +127,7 @@ class multichoice_test extends \logstore_xapi\xapi_test_case {
         $this->assertSame('test_question', $interactions[0]['questiontext']);
         $this->assertSame('answer 1', $interactions[0]['answertext']);
         $this->assertSame('answer 2', $interactions[1]['answertext']);
+        $this->assertArrayNotHasKey('questionposition', $interactions[0]);
     }
 
     /**
@@ -308,6 +310,12 @@ class multichoice_test extends \logstore_xapi\xapi_test_case {
                 'timestamp' => 11000, 'datetime' => '2026-10-08T10:00:11Z'],
             ['attemptid' => 1, 'eventtype' => 'verify', 'slot' => 2, 'questionid' => null,
                 'timestamp' => 12000, 'datetime' => '2026-10-08T10:00:12Z'],
+            [
+                'attemptid' => 1, 'eventtype' => 'dragdrop', 'slot' => 1, 'questionid' => 1,
+                'timestamp' => 13000, 'datetime' => '2026-10-08T10:00:13Z',
+                'dragstarttimestamp' => 12500, 'droptimestamp' => 13000,
+                'fromplace' => 'pool', 'toplace' => '1', 'cardtext' => 'A draggable item',
+            ],
         ];
         $testdata->local_quizinteractions_log = [[
             'id' => 1,
@@ -332,8 +340,8 @@ class multichoice_test extends \logstore_xapi\xapi_test_case {
         for ($index = 1; $index < count($interactions); $index++) {
             $this->assertEquals($interactions[$index], $completedinteractions[$index]);
         }
-        $this->assertCount(3, $answeredinteractions);
-        $this->assertSame(['answer', 'verify', 'tryagain'], array_map(
+        $this->assertCount(4, $answeredinteractions);
+        $this->assertSame(['answer', 'verify', 'tryagain', 'dragdrop'], array_map(
             static function ($interaction) {
                 return $interaction['eventtype'] ?? 'answer';
             },
@@ -345,6 +353,8 @@ class multichoice_test extends \logstore_xapi\xapi_test_case {
         $this->assertArrayNotHasKey('answertext', $answeredinteractions[1]);
         $this->assertEquals($interactions[1], $answeredinteractions[1]);
         $this->assertEquals($interactions[2], $answeredinteractions[2]);
+        $this->assertEquals($interactions[12], $answeredinteractions[3]);
+        $this->assertEquals($interactions[12], $completedinteractions[12]);
         $this->assertSame('navigate', $completedinteractions[7]['eventtype']);
         $this->assertSame(2, $completedinteractions[7]['targetslot']);
         $this->assertSame('future_event', $completedinteractions[9]['eventtype']);

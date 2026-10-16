@@ -120,7 +120,7 @@ function get_quiz_interactions_extension(
         }
 
         if ($eventtype !== 'answer') {
-            if ($slot !== null && !in_array($eventtype, ['verify', 'tryagain'], true)) {
+            if ($slot !== null && !in_array($eventtype, ['verify', 'tryagain', 'dragdrop'], true)) {
                 continue;
             }
             $enriched[] = (array) $interaction;
@@ -137,7 +137,7 @@ function get_quiz_interactions_extension(
 
         $answerid = isset($interaction->answerid) ? (int) $interaction->answerid : null;
 
-        if ($interactionquestionid === null || $answerid === null) {
+        if ($interactionquestionid === null) {
             $enriched[] = (array) $interaction;
             continue;
         }
@@ -146,6 +146,24 @@ function get_quiz_interactions_extension(
             $question = $repo->read_record('question', ['id' => $interactionquestionid]);
         } catch (\Throwable $e) {
             $enriched[] = (array) $interaction;
+            continue;
+        }
+
+        $questionposition = null;
+        if (
+            ($question->qtype === 'match' || $question->qtype === 'randomsamatch') &&
+            isset($interaction->elementname) &&
+            preg_match('/_sub(\d+)$/', (string) $interaction->elementname, $matches)
+        ) {
+            $questionposition = (int) $matches[1] + 1;
+        }
+
+        if ($answerid === null) {
+            $enrichedinteraction = (array) $interaction;
+            if ($questionposition !== null) {
+                $enrichedinteraction['questionposition'] = $questionposition;
+            }
+            $enriched[] = $enrichedinteraction;
             continue;
         }
 
@@ -264,6 +282,9 @@ function get_quiz_interactions_extension(
         $enrichedinteraction['questiontext'] = utils\get_string_html_removed($question->questiontext ?? $question->name ?? '');
         $enrichedinteraction['answertext'] = $answertext;
         $enrichedinteraction['resolution'] = $resolution;
+        if ($questionposition !== null) {
+            $enrichedinteraction['questionposition'] = $questionposition;
+        }
         if ($question->qtype === 'match' || $question->qtype === 'randomsamatch') {
             $enrichedinteraction['subquestiontext'] = $subquestiontext;
         }

@@ -91,7 +91,7 @@ class match_test extends \logstore_xapi\xapi_test_case {
                     'slot' => 1,
                     'questionid' => 1,
                     'answerid' => 3,
-                    'elementname' => 'sub3',
+                    'elementname' => 'q44:2_sub3',
                     'position' => 2,
                     'action' => 'selected',
                     'timestamp' => 5000,
@@ -101,7 +101,7 @@ class match_test extends \logstore_xapi\xapi_test_case {
                     'slot' => 1,
                     'questionid' => 1,
                     'answerid' => 1,
-                    'elementname' => 'sub1',
+                    'elementname' => 'q44:2_sub0',
                     'position' => 0,
                     'action' => 'selected',
                     'timestamp' => 5001,
@@ -111,7 +111,7 @@ class match_test extends \logstore_xapi\xapi_test_case {
                     'slot' => 1,
                     'questionid' => 1,
                     'answerid' => 4,
-                    'elementname' => 'sub4',
+                    'elementname' => 'q44:2',
                     'position' => 3,
                     'action' => 'selected',
                     'timestamp' => 5002,
@@ -121,7 +121,6 @@ class match_test extends \logstore_xapi\xapi_test_case {
                     'slot' => 1,
                     'questionid' => 1,
                     'answerid' => 2,
-                    'elementname' => 'sub2',
                     'position' => 1,
                     'action' => 'selected',
                     'timestamp' => 5003,
@@ -142,5 +141,11 @@ class match_test extends \logstore_xapi\xapi_test_case {
         $this->assertSame(['fallback', 'fallback', 'fallback', 'fallback'], array_column($interactions, 'resolution'));
         $this->assertSame([null, null, null, null], array_column($interactions, 'subquestiontext'));
         $this->assertSame('test_question', $interactions[0]['questiontext']);
+        $this->assertSame(4, $interactions[0]['questionposition']);
+        $this->assertSame(1, $interactions[1]['questionposition']);
+        $this->assertSame([3, 1, 4, 2], array_column($interactions, 'answerid'));
+        $this->assertSame([2, 0, 3, 1], array_column($interactions, 'position'));
+        $this->assertArrayNotHasKey('questionposition', $interactions[2]);
+        $this->assertArrayNotHasKey('questionposition', $interactions[3]);
     }
 }
