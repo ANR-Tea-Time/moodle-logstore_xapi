@@ -83,7 +83,8 @@ function get_quiz_interactions_extension(
     $livecontexts = [];
     foreach ($decoded as $interaction) {
         if (!is_object($interaction) || !isset($interaction->slot) ||
-            (property_exists($interaction, 'eventtype') && $interaction->eventtype !== 'answer')) {
+            (property_exists($interaction, 'eventtype') &&
+                !in_array($interaction->eventtype, ['answer', 'dragdrop'], true))) {
             continue;
         }
         $interactionslot = (int) $interaction->slot;
@@ -116,6 +117,21 @@ function get_quiz_interactions_extension(
             continue;
         }
         if ($questionid !== null && $hasquestionid && $interactionquestionid !== $questionid) {
+            continue;
+        }
+
+        if ($eventtype === 'dragdrop') {
+            $correct = null;
+            $resolution = 'fallback';
+            $livecontext = $livecontexts[$interactionslot] ?? build_live_resolution_context(null, null);
+            [$correct, $resolution] = get_ddwtos_dragdrop_correctness(
+                $interaction,
+                $livecontext['question']
+            );
+            $enrichedinteraction = (array) $interaction;
+            $enrichedinteraction['correct'] = $correct;
+            $enrichedinteraction['resolution'] = $resolution;
+            $enriched[] = $enrichedinteraction;
             continue;
         }
 
@@ -295,9 +311,84 @@ function get_quiz_interactions_extension(
 }
 
 /**
+ * Judge a ddwtos drag-and-drop event using its live question definition.
+ *
+ * @param \stdClass $interaction The captured dragdrop event.
+ * @param ?object $livequestion The question object loaded for this attempt.
+ * @return array
+ */
+function get_ddwtos_dragdrop_correctness(\stdClass $interaction, ?object $livequestion): array {
+    if (
+        $livequestion === null ||
+        !method_exists($livequestion, 'get_type_name') ||
+        $livequestion->get_type_name() !== 'ddwtos' ||
+        !isset($livequestion->places, $livequestion->choices, $livequestion->rightchoices) ||
+        !is_array($livequestion->places) ||
+        !is_array($livequestion->choices) ||
+        !is_array($livequestion->rightchoices)
+    ) {
+        return [null, 'fallback'];
+    }
+
+    $toplace = isset($interaction->toplace) ? (string) $interaction->toplace : '';
+    if ($toplace === 'pool' || !preg_match('/^[1-9][0-9]*$/D', $toplace)) {
+        return [null, 'live'];
+    }
+    if (isset($interaction->fromplace) && $toplace === (string) $interaction->fromplace) {
+        return [null, 'live'];
+    }
+
+    $place = (int) $toplace;
+    if (!array_key_exists($place, $livequestion->places)) {
+        return [null, 'live'];
+    }
+    if (!isset($interaction->cardtext) || !is_string($interaction->cardtext)) {
+        return [null, 'live'];
+    }
+
+    $group = $livequestion->places[$place];
+    if (
+        !array_key_exists($place, $livequestion->rightchoices) ||
+        !isset($livequestion->choices[$group]) ||
+        !is_array($livequestion->choices[$group])
+    ) {
+        return [null, 'fallback'];
+    }
+    $rightchoiceid = $livequestion->rightchoices[$place];
+    if (
+        !isset($livequestion->choices[$group][$rightchoiceid]) ||
+        !isset($livequestion->choices[$group][$rightchoiceid]->text) ||
+        !is_string($livequestion->choices[$group][$rightchoiceid]->text)
+    ) {
+        return [null, 'fallback'];
+    }
+
+    $cardtext = normalize_ddwtos_choice_text($interaction->cardtext);
+    $righttext = normalize_ddwtos_choice_text($livequestion->choices[$group][$rightchoiceid]->text);
+    if ($cardtext === null || $righttext === null || $cardtext === '' || $righttext === '') {
+        return [null, 'live'];
+    }
+
+    return [$cardtext === $righttext, 'live'];
+}
+
+/**
+ * Normalize rendered ddwtos choice text for exact comparison.
+ *
+ * @param string $text The choice text.
+ * @return ?string
+ */
+function normalize_ddwtos_choice_text(string $text): ?string {
+    $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = str_replace("\xc2\xa0", ' ', $text);
+    $text = preg_replace('/\s+/u', ' ', $text);
+    return $text === null ? null : trim($text);
+}
+
+/**
  * Load the question definition belonging to this attempt and slot.
  *
- * Matching questions shuffle their choices per attempt, so their live question
+ * Matching and ddwtos use attempt-specific question state, so their live question
  * object is authoritative. The repository fallback keeps unit tests independent
  * of Moodle's question engine.
  *

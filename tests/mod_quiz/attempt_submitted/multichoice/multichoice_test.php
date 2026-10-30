@@ -353,11 +353,116 @@ class multichoice_test extends \logstore_xapi\xapi_test_case {
         $this->assertArrayNotHasKey('answertext', $answeredinteractions[1]);
         $this->assertEquals($interactions[1], $answeredinteractions[1]);
         $this->assertEquals($interactions[2], $answeredinteractions[2]);
-        $this->assertEquals($interactions[12], $answeredinteractions[3]);
-        $this->assertEquals($interactions[12], $completedinteractions[12]);
+        $expecteddragdrop = $interactions[12] + ['correct' => null, 'resolution' => 'fallback'];
+        $this->assertEquals($expecteddragdrop, $answeredinteractions[3]);
+        $this->assertEquals($expecteddragdrop, $completedinteractions[12]);
+        $this->assertSame('fallback', $completedinteractions[12]['resolution']);
         $this->assertSame('navigate', $completedinteractions[7]['eventtype']);
         $this->assertSame(2, $completedinteractions[7]['targetslot']);
         $this->assertSame('future_event', $completedinteractions[9]['eventtype']);
         $this->assertArrayNotHasKey('correct', $completedinteractions[9]);
+    }
+
+    /**
+     * Judge ddwtos drops by normalized live choice text for the destination place.
+     *
+     * @return void
+     */
+    public function test_ddwtos_dragdrop_correctness_uses_live_choice_text() {
+        $livequestion = new class {
+            public $type = 'ddwtos';
+            public $places;
+            public $choices;
+            public $rightchoices;
+
+            public function get_type_name() {
+                return $this->type;
+            }
+        };
+        $livequestion->places = [1 => 1, 2 => 1];
+        $livequestion->choices = [
+            1 => [
+                1 => (object) ['text' => '<span>trois pattes</span>'],
+                2 => (object) ['text' => '<span>deux   pattes</span>'],
+                3 => (object) ['text' => 'quatre pattes'],
+            ],
+        ];
+        $livequestion->rightchoices = [1 => 2, 2 => 3];
+        $resolver = '\\src\\transformer\\events\\mod_quiz\\attempt_submitted\\get_ddwtos_dragdrop_correctness';
+
+        $this->assertSame([true, 'live'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '1', 'cardtext' => "deux\xc2\xa0pattes",
+        ], $livequestion));
+        $this->assertSame([false, 'live'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '1', 'cardtext' => 'trois pattes',
+        ], $livequestion));
+        $this->assertSame([false, 'live'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '2', 'cardtext' => 'deux pattes',
+        ], $livequestion));
+        $this->assertSame([true, 'live'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '2', 'cardtext' => 'quatre pattes',
+        ], $livequestion));
+        $this->assertSame([null, 'live'], $resolver((object) [
+            'fromplace' => '1', 'toplace' => 'pool', 'cardtext' => 'deux pattes',
+        ], $livequestion));
+        $this->assertSame([null, 'live'], $resolver((object) [
+            'fromplace' => '1', 'toplace' => '1', 'cardtext' => 'deux pattes',
+        ], $livequestion));
+        $this->assertSame([null, 'live'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '3', 'cardtext' => 'deux pattes',
+        ], $livequestion));
+        $this->assertSame([null, 'fallback'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '1', 'cardtext' => 'deux pattes',
+        ], null));
+        $livequestion->type = 'multichoice';
+        $this->assertSame([null, 'fallback'], $resolver((object) [
+            'fromplace' => 'pool', 'toplace' => '1', 'cardtext' => 'deux pattes',
+        ], $livequestion));
+    }
+
+    /**
+     * Return dragdrop diagnostics for ddwtos when live attempt data is unavailable.
+     *
+     * @return void
+     */
+    public function test_ddwtos_dragdrop_falls_back_without_live_attempt_data() {
+        $event = $this->get_event();
+        $testdata = $this->get_test_data();
+        $testdata->question[0]->qtype = 'ddwtos';
+        $testdata->quiz_attempts[0]->uniqueid = 987654321;
+        $testdata->question_attempts[0]->questionusageid = 987654321;
+        $testdata->local_quizinteractions_log = [[
+            'id' => 1,
+            'attemptid' => 1,
+            'interactions' => json_encode([[
+                'eventtype' => 'dragdrop',
+                'slot' => 1,
+                'questionid' => 1,
+                'fromplace' => 'pool',
+                'toplace' => '1',
+                'cardtext' => 'deux pattes',
+                'attemptid' => 1,
+                'timestamp' => 5000,
+                'datetime' => '2026-10-08T10:00:00Z',
+            ]]),
+        ]];
+        $config = $this->get_transformer_config();
+        $config['repo'] = new \src\transformer\repos\TestRepository($testdata);
+
+        $statements = \src\transformer\events\mod_quiz\attempt_submitted\handler($config, $event);
+        $receivedevent = clone $event;
+        $receivedevent->eventname = '\\mod_quiz\\event\\attempt_reviewed';
+        $received = \src\transformer\events\mod_quiz\attempt_reviewed($config, $receivedevent);
+        $key = 'https://example.com/xapi/extensions/quiz-interactions';
+
+        $this->assertCount(1, $statements);
+        $this->assertSame([null, 'fallback'], [
+            $statements[0]['result']['extensions'][$key][0]['correct'],
+            $statements[0]['result']['extensions'][$key][0]['resolution'],
+        ]);
+        $this->assertEquals(
+            $statements[0]['result']['extensions'][$key],
+            $received[0]['result']['extensions'][$key]
+        );
     }
 }
